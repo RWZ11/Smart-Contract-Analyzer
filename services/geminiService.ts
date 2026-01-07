@@ -1,140 +1,179 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisReport, Severity } from "../types";
+import { AnalysisReport, Severity, Vulnerability, ContractNode, IRInstruction } from "../types";
 
-const SYSTEM_INSTRUCTION = `
-你是一个名为 "Sentinels" 的高级智能合约静态分析引擎。
-你的架构包括：
-1. 编译/AST 解析 (Solidity 0.4.x - 0.8.x)。
-2. IR 生成 (SlithIR 风格: Assignment, MemberAccess, CallOperation 等)。
-3. 检测器分析 (重入攻击, 未经检查的低级调用, 访问控制等)。
-4. 数据流分析 (污点追踪)。
-
-你的任务：
-分析提供的 Solidity 代码。
-模拟内部流程并返回包含以下内容的 JSON 响应：
-1. 识别出的漏洞 (High/Medium/Low)。**请注意：Description（描述）和 Suggestion（建议）字段必须使用中文。** 所有的 detectorName（检测器名称）也请尽量使用中文或行业通用的中文术语。
-2. 针对最关键函数的生成 IR (中间表示) 预览。
-3. 依赖图结构 (节点和链接)。
-4. 统计数据。
-
-请精确分析。如果代码存在重入漏洞，请明确指出。
-注意：JSON 结构中的枚举值（如 Severity 的 "High", "Medium", "Low" 和 Type 的 "Contract", "Assignment" 等）请保持英文，以便前端程序正确处理。
-`;
-
+/**
+ * 本地静态分析引擎 (Sentinels Local Engine)
+ * 不依赖外部 API，使用正则匹配和启发式规则进行离线分析。
+ */
 export const analyzeContractCode = async (code: string): Promise<AnalysisReport> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key 未配置。请检查环境变量。");
+  // 模拟分析引擎启动和处理时间 (提升用户体验真实感)
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  const lines = code.split('\n');
+  const vulnerabilities: Vulnerability[] = [];
+  const contracts: ContractNode[] = [];
+  const dependencies: any[] = [];
+  const irPreview: IRInstruction[] = [];
+
+  let functionCount = 0;
+  let currentFunction: string | null = null;
+  let irCounter = 0;
+  let solidityVersion = "0.8.0"; // 默认假设
+
+  // 1. 预处理与版本检测
+  const pragmaLine = lines.find(l => l.trim().startsWith('pragma solidity'));
+  if (pragmaLine) {
+      const vMatch = pragmaLine.match(/(\d+\.\d+\.\d+)/);
+      if (vMatch) solidityVersion = vMatch[1];
   }
+  const isOldVersion = parseInt(solidityVersion.split('.')[1]) < 8;
 
-  const ai = new GoogleGenAI({ apiKey });
+  // 2. 逐行扫描分析
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    const lineNum = idx + 1;
+    
+    // 忽略注释
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
 
-  // Schema definition for strict JSON output
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      stats: {
-        type: Type.OBJECT,
-        properties: {
-          high: { type: Type.NUMBER },
-          medium: { type: Type.NUMBER },
-          low: { type: Type.NUMBER },
-          linesOfCode: { type: Type.NUMBER },
-          functions: { type: Type.NUMBER },
-        },
-        required: ["high", "medium", "low", "linesOfCode", "functions"]
-      },
-      contracts: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            id: { type: Type.STRING },
-            name: { type: Type.STRING },
-            type: { type: Type.STRING, enum: ["Contract", "Library", "Interface"] }
-          }
-        }
-      },
-      dependencies: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            source: { type: Type.STRING },
-            target: { type: Type.STRING }
-          }
-        }
-      },
-      vulnerabilities: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            id: { type: Type.STRING },
-            detectorName: { type: Type.STRING },
-            severity: { type: Type.STRING, enum: ["High", "Medium", "Low", "Info"] },
-            confidence: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-            description: { type: Type.STRING },
-            location: {
-              type: Type.OBJECT,
-              properties: {
-                startLine: { type: Type.NUMBER },
-                endLine: { type: Type.NUMBER }
-              }
-            },
-            suggestion: { type: Type.STRING }
-          }
-        }
-      },
-      irPreview: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            id: { type: Type.STRING },
-            type: { type: Type.STRING, enum: ["Assignment", "MemberAccess", "BinaryOperation", "CallOperation", "LengthOperation", "PhiOperation"] },
-            content: { type: Type.STRING },
-            line: { type: Type.NUMBER }
-          }
-        }
+    // --- 结构解析 ---
+
+    // 识别合约/接口/库
+    const contractMatch = trimmed.match(/^(contract|interface|library)\s+(\w+)/);
+    if (contractMatch) {
+      contracts.push({
+        id: contractMatch[2],
+        name: contractMatch[2],
+        type: contractMatch[1] === 'library' ? 'Library' : contractMatch[1] === 'interface' ? 'Interface' : 'Contract'
+      });
+      // 识别继承关系
+      if (trimmed.includes(' is ')) {
+         const parts = trimmed.split(' is ');
+         if (parts[1]) {
+             const parents = parts[1].split('{')[0].split(',').map(p => p.trim());
+             parents.forEach(p => dependencies.push({ source: contractMatch[2], target: p.split(' ')[0] }));
+         }
       }
-    },
-    required: ["stats", "contracts", "vulnerabilities", "irPreview"]
+    }
+
+    // 识别函数
+    if (trimmed.startsWith('function ')) {
+        functionCount++;
+        const funcMatch = trimmed.match(/function\s+(\w+)/);
+        currentFunction = funcMatch ? funcMatch[1] : 'fallback/receive';
+    } else if (trimmed === '}') {
+        currentFunction = null;
+    }
+
+    // --- IR 生成 (模拟 SlithIR) ---
+    // 为非空行且在函数内的代码生成 IR 指令
+    if (currentFunction && trimmed.length > 2 && !trimmed.startsWith('function')) {
+        let irType: IRInstruction['type'] | null = null;
+        let content = "";
+
+        if (trimmed.includes(' = ')) {
+            irType = 'Assignment';
+            const parts = trimmed.split(' = ');
+            content = `${parts[0].trim()} := ${parts[1].replace(';', '').trim()}`;
+        } else if (trimmed.includes('require(')) {
+            irType = 'CallOperation';
+            content = `INTERNAL_CALL require(...)`;
+        } else if (trimmed.includes('.call') || trimmed.includes('.delegatecall')) {
+            irType = 'CallOperation';
+            content = `LOW_LEVEL_CALL ${trimmed.replace(';', '')}`;
+        } else if (trimmed.includes('length')) {
+            irType = 'LengthOperation';
+            content = `SLOAD length_of_array`;
+        } else if (trimmed.includes('if (')) {
+            irType = 'PhiOperation';
+            content = `CONDITION ${trimmed.replace('{', '')}`;
+        }
+
+        if (irType && irCounter < 15) { // 限制预览数量
+            irPreview.push({
+                id: `ir-${irCounter++}`,
+                type: irType,
+                content: content,
+                line: lineNum
+            });
+        }
+    }
+
+    // --- 漏洞检测规则 (Heuristics) ---
+
+    // 规则 1: 重入攻击 (Reentrancy)
+    // 检测带有 value 的低级调用
+    if (trimmed.match(/\.call\s*\{.*value:/)) {
+        vulnerabilities.push({
+            id: `vuln-reentrancy-${lineNum}`,
+            detectorName: "重入攻击风险 (Reentrancy)",
+            severity: Severity.HIGH,
+            confidence: "High",
+            description: "检测到发送 ETH 的低级 `call`。如果在此调用之后修改了状态变量，可能会导致重入攻击。",
+            location: { startLine: lineNum, endLine: lineNum },
+            suggestion: "遵循 Checks-Effects-Interactions 模式，或使用 OpenZeppelin 的 ReentrancyGuard。"
+        });
+    }
+
+    // 规则 2: 整数溢出 (Integer Overflow) - 仅在旧版本 Solidity 中检测
+    if (isOldVersion && trimmed.match(/[\+\-\*]=?/) && !trimmed.includes('unchecked')) {
+        // 避免重复报告，简单去重
+        const hasOverflow = vulnerabilities.some(v => v.detectorName === "整数溢出风险");
+        if (!hasOverflow) {
+            vulnerabilities.push({
+                id: `vuln-overflow-${lineNum}`,
+                detectorName: "整数溢出风险",
+                severity: Severity.HIGH,
+                confidence: "Medium",
+                description: `当前 Solidity 版本 (${solidityVersion}) < 0.8.0，算术运算不会自动检查溢出。`,
+                location: { startLine: lineNum, endLine: lineNum },
+                suggestion: "请使用 SafeMath 库进行算术运算，或升级到 Solidity 0.8.0+。"
+            });
+        }
+    }
+
+    // 规则 3: 使用 tx.origin
+    if (trimmed.includes('tx.origin')) {
+        vulnerabilities.push({
+            id: `vuln-txorigin-${lineNum}`,
+            detectorName: "使用 tx.origin 鉴权",
+            severity: Severity.MEDIUM,
+            confidence: "High",
+            description: "使用 `tx.origin` 进行身份验证容易受到网络钓鱼攻击。",
+            location: { startLine: lineNum, endLine: lineNum },
+            suggestion: "建议使用 `msg.sender` 替代 `tx.origin`。"
+        });
+    }
+
+    // 规则 4: 未检查的低级调用返回值
+    // 简单检测：只有 .call 但没有在同一行赋值给 bool 或在 require 中使用
+    if ((trimmed.includes('.call') || trimmed.includes('.delegatecall')) && 
+        !trimmed.includes('require') && 
+        !trimmed.includes('bool ') && 
+        !trimmed.includes('success')) {
+         vulnerabilities.push({
+            id: `vuln-unchecked-${lineNum}`,
+            detectorName: "未检查的返回值",
+            severity: Severity.LOW,
+            confidence: "Medium",
+            description: "低级调用的返回值未被检查。如果调用失败，交易将继续执行。",
+            location: { startLine: lineNum, endLine: lineNum },
+            suggestion: "始终检查低级调用的返回值：`(bool success, ) = ...; require(success);`"
+        });
+    }
+  });
+
+  // 3. 构建报告
+  return {
+    contracts,
+    dependencies,
+    vulnerabilities,
+    irPreview,
+    stats: {
+      high: vulnerabilities.filter(v => v.severity === Severity.HIGH).length,
+      medium: vulnerabilities.filter(v => v.severity === Severity.MEDIUM).length,
+      low: vulnerabilities.filter(v => v.severity === Severity.LOW || v.severity === Severity.INFO).length,
+      linesOfCode: lines.length,
+      functions: functionCount
+    }
   };
-
-  try {
-    // Timeout promise (30 seconds)
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("分析请求超时 (30秒)。请重试或检查网络连接。")), 30000);
-    });
-
-    const apiPromise = ai.models.generateContent({
-      model: "gemini-3-flash-preview", // Switched to Flash for faster response
-      contents: `分析这段 Solidity 代码:\n\n${code}`,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-        temperature: 0.1 // Low temperature for deterministic analysis
-      }
-    });
-
-    // Race between API call and timeout
-    const response: any = await Promise.race([apiPromise, timeoutPromise]);
-
-    const text = response.text;
-    if (!text) throw new Error("AI 未返回有效响应");
-    
-    return JSON.parse(text) as AnalysisReport;
-
-  } catch (error: any) {
-    console.error("Analysis failed:", error);
-    // Enhance error message for better user feedback
-    let errorMessage = error.message;
-    if (errorMessage.includes("400")) errorMessage = "请求无效 (400)。请检查代码格式。";
-    if (errorMessage.includes("401") || errorMessage.includes("403")) errorMessage = "API Key 无效或无权限。";
-    if (errorMessage.includes("503")) errorMessage = "服务暂时不可用，请稍后重试。";
-    
-    throw new Error(errorMessage);
-  }
 };
