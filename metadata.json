@@ -1,0 +1,5 @@
+{
+  "name": "Sentinels - 智能合约分析器",
+  "description": "一款针对 Solidity 和 Vyper 合约的高精度静态分析工具，具有基于 IR 的漏洞检测、数据流分析和交互式可视化功能。",
+  "requestFramePermissions": []
+}
