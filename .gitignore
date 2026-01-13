@@ -1,0 +1,119 @@
+# =============================
+# 1) 开发环境相关忽略项
+# =============================
+# 操作系统临时文件（避免把系统生成的垃圾文件加入版本库）
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# IDE / 编辑器配置目录（本地个性化配置不进版本库）
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# 本地环境配置（仅用于开发，不应提交到仓库）
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*
+# 保留示例配置文件（便于团队成员参考）
+!.env.example
+
+
+# =============================
+# 2) 构建产物忽略项
+# =============================
+# 通用构建输出目录（前后端常见的打包产物）
+dist/
+build/
+out/
+
+# 前端产物（若仅在 frontend 目录下，可单独指定）
+frontend/dist/
+
+# 压缩打包文件（发布包不进版本库）
+*.zip
+*.tar.gz
+
+# 依赖目录（通过包管理器安装，无需纳入版本库）
+node_modules/
+vendor/
+
+
+# =============================
+# 3) 测试相关忽略项
+# =============================
+# 测试覆盖率报告与中间文件
+coverage/
+.nyc_output/
+.coverage
+
+# 测试运行输出日志与结果
+junit.xml
+test-results/
+*.test.log
+*.spec.log
+
+
+# =============================
+# 4) 版本控制忽略项
+# =============================
+# 版本控制系统目录（通常不会被纳入版本库，此处显式排除）
+.git/
+.svn/
+.hg/
+
+# 合并冲突中间文件（避免误提交到仓库）
+*.orig
+*.rej
+
+
+# =============================
+# 5) 日志文件忽略项
+# =============================
+# 系统与应用日志目录/文件（运行时产生，不进版本库）
+logs/
+*.log
+*.debug
+
+
+# =============================
+# 6) 项目特定忽略项
+# =============================
+# Python 缓存与虚拟环境目录（后端运行环境与缓存不进版本库）
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.python-version
+
+# Python 虚拟环境目录（本地依赖隔离）
+.venv/
+venv/
+env/
+
+# Java / Gradle 构建产物
+.target/
+.gradle/
+
+# 前端工具与缓存
+.eslintcache
+node_modules/.cache/
+frontend/.cache/
+
+# 项目生成的报告文件（由工具生成，不应提交）
+report.json
+report.sarif
+
+# 其他通用缓存目录
+.cache/
+
