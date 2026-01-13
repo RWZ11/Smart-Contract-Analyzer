@@ -1,0 +1,122 @@
+{
+  "sca_version": "1.0.0",
+  "analysis_metadata": {
+    "timestamp": "2026-01-13T07:27:45Z",
+    "target": "test_contracts\\protected_vars.sol",
+    "analysis_duration_seconds": 0.37,
+    "solidity_version": "0.8.20"
+  },
+  "contracts_analyzed": [
+    {
+      "name": "Config",
+      "source_file": "test_contracts\\protected_vars.sol",
+      "source_lines": {
+        "start": 4,
+        "end": 15
+      },
+      "is_upgradeable": false
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "detector": "SLITHER-like-protected-vars",
+      "severity": "High",
+      "swc_id": "SLITHER-like-protected-vars",
+      "title": "关键状态写入缺少所有者保护",
+      "description": "关键状态写入缺少所有者保护",
+      "contract": "Config",
+      "function": "setRate",
+      "location": {
+        "file": "test_contracts\\protected_vars.sol",
+        "start_line": 13,
+        "end_line": 15
+      },
+      "code_snippet": "    function setRate(uint256 r) external {\n        rate = r;\n    }\n}",
+      "fix_suggestion": "Please review the code and apply security best practices.",
+      "confidence": "High",
+      "id": "VULN-001"
+    },
+    {
+      "detector": "SLITHER-like-uninitialized-state",
+      "severity": "Medium",
+      "swc_id": "SLITHER-like-uninitialized-state",
+      "title": "未初始化的状态变量",
+      "description": "未初始化的状态变量",
+      "contract": "Config",
+      "function": null,
+      "location": {
+        "file": "test_contracts\\protected_vars.sol",
+        "start_line": 5,
+        "end_line": 7
+      },
+      "code_snippet": "contract Config {\n    address public owner;\n    uint256 public rate;\n",
+      "fix_suggestion": "Please review the code and apply security best practices.",
+      "confidence": "High",
+      "id": "VULN-002"
+    },
+    {
+      "detector": "SLITHER-like-uninitialized-state",
+      "severity": "Medium",
+      "swc_id": "SLITHER-like-uninitialized-state",
+      "title": "未初始化的状态变量",
+      "description": "未初始化的状态变量",
+      "contract": "Config",
+      "function": null,
+      "location": {
+        "file": "test_contracts\\protected_vars.sol",
+        "start_line": 6,
+        "end_line": 8
+      },
+      "code_snippet": "    address public owner;\n    uint256 public rate;\n\n    constructor() {",
+      "fix_suggestion": "Please review the code and apply security best practices.",
+      "confidence": "High",
+      "id": "VULN-003"
+    }
+  ],
+  "informational_findings": [
+    {
+      "detector": "SWC-108",
+      "severity": "Informational",
+      "swc_id": "SWC-108",
+      "title": "Public State Variable",
+      "description": "检测到显式设置为 public 的状态变量 (State Variable Visibility)",
+      "contract": "Config",
+      "function": null,
+      "location": {
+        "file": "test_contracts\\protected_vars.sol",
+        "start_line": 5,
+        "end_line": 7
+      },
+      "code_snippet": "contract Config {\n    address public owner;\n    uint256 public rate;\n",
+      "fix_suggestion": "Review if the state variable needs to be public. If it contains sensitive data, change visibility to private or internal and provide controlled getter functions if needed.",
+      "confidence": "High",
+      "id": "INFO-001"
+    },
+    {
+      "detector": "SWC-108",
+      "severity": "Informational",
+      "swc_id": "SWC-108",
+      "title": "Public State Variable",
+      "description": "检测到显式设置为 public 的状态变量 (State Variable Visibility)",
+      "contract": "Config",
+      "function": null,
+      "location": {
+        "file": "test_contracts\\protected_vars.sol",
+        "start_line": 6,
+        "end_line": 8
+      },
+      "code_snippet": "    address public owner;\n    uint256 public rate;\n\n    constructor() {",
+      "fix_suggestion": "Review if the state variable needs to be public. If it contains sensitive data, change visibility to private or internal and provide controlled getter functions if needed.",
+      "confidence": "High",
+      "id": "INFO-002"
+    }
+  ],
+  "summary": {
+    "total_vulnerabilities": 3,
+    "high_severity": 1,
+    "medium_severity": 2,
+    "low_severity": 0,
+    "informational": 2,
+    "total_contracts_analyzed": 1
+  }
+}

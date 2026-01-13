@@ -1,0 +1,85 @@
+{
+  "sca_version": "1.0.0",
+  "analysis_metadata": {
+    "timestamp": "2026-01-13T07:27:28Z",
+    "target": "test_contracts\\vulnerable.sol",
+    "analysis_duration_seconds": 2.23,
+    "solidity_version": "0.8.20"
+  },
+  "contracts_analyzed": [
+    {
+      "name": "UncheckedTransfer",
+      "source_file": "test_contracts\\vulnerable.sol",
+      "source_lines": {
+        "start": 4,
+        "end": 12
+      },
+      "is_upgradeable": false
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "detector": "SLITHER-like-arbitrary-send-eth",
+      "severity": "Medium",
+      "swc_id": "SLITHER-like-arbitrary-send-eth",
+      "title": "检测向可能由外部控制的地址发送以太币",
+      "description": "检测向可能由外部控制的地址发送以太币",
+      "contract": "UncheckedTransfer",
+      "function": "sendEther",
+      "location": {
+        "file": "test_contracts\\vulnerable.sol",
+        "start_line": 9,
+        "end_line": 11
+      },
+      "code_snippet": "        _to.call{value: msg.value}(\"\"); \n        // 错误：transfer 虽有内置校验，但 Solidity 0.8+ 仍建议显式处理\n        payable(_to).transfer(1 ether);\n    }",
+      "fix_suggestion": "Please review the code and apply security best practices.",
+      "confidence": "High",
+      "id": "VULN-001"
+    },
+    {
+      "detector": "SWC-107",
+      "severity": "High",
+      "swc_id": "SWC-107",
+      "title": "检测到低级调用 call.value，可能存在重入漏洞 (Reentrancy)",
+      "description": "检测到低级调用 call.value，可能存在重入漏洞 (Reentrancy)",
+      "contract": "UncheckedTransfer",
+      "function": "sendEther",
+      "location": {
+        "file": "test_contracts\\vulnerable.sol",
+        "start_line": 8,
+        "end_line": 10
+      },
+      "code_snippet": "        // 错误：call 转账未检查 success 返回值\n        _to.call{value: msg.value}(\"\"); \n        // 错误：transfer 虽有内置校验，但 Solidity 0.8+ 仍建议显式处理\n        payable(_to).transfer(1 ether);",
+      "fix_suggestion": "Please review the code and apply security best practices.",
+      "confidence": "High",
+      "id": "VULN-002"
+    },
+    {
+      "detector": "SWC-104",
+      "severity": "Medium",
+      "swc_id": "SWC-104",
+      "title": "Unchecked Low-Level Call Return Value",
+      "description": "检测到未检查返回值的低级调用 (Unchecked Return Value)",
+      "contract": "UncheckedTransfer",
+      "function": "sendEther",
+      "location": {
+        "file": "test_contracts\\vulnerable.sol",
+        "start_line": 8,
+        "end_line": 10
+      },
+      "code_snippet": "        // 错误：call 转账未检查 success 返回值\n        _to.call{value: msg.value}(\"\"); \n        // 错误：transfer 虽有内置校验，但 Solidity 0.8+ 仍建议显式处理\n        payable(_to).transfer(1 ether);",
+      "fix_suggestion": "Check the return value of the call() or use transfer()/sendValue() (from OpenZeppelin) instead. Always verify the success of low-level calls before proceeding with state changes.",
+      "confidence": "High",
+      "id": "VULN-003"
+    }
+  ],
+  "informational_findings": [],
+  "summary": {
+    "total_vulnerabilities": 3,
+    "high_severity": 1,
+    "medium_severity": 2,
+    "low_severity": 0,
+    "informational": 0,
+    "total_contracts_analyzed": 1
+  }
+}

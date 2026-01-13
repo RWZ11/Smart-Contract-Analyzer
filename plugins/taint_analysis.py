@@ -71,3 +71,6 @@ class UnprotectedWithdrawDetector(BaseDetector):
                             })
         
         return issues
+
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)

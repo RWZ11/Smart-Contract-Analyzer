@@ -11,7 +11,23 @@ class StorageVisibilityDetector(BaseDetector):
 
     @property
     def severity(self):
-        return "Info"
+        return "Informational"
+    
+    @property
+    def title(self):
+        return "Public State Variable"
+    
+    @property
+    def swc_id(self):
+        return "SWC-108"
+    
+    @property
+    def confidence(self):
+        return "High"
+    
+    @property
+    def fix_suggestion(self):
+        return "Review if the state variable needs to be public. If it contains sensitive data, change visibility to private or internal and provide controlled getter functions if needed."
 
     def check(self, content: str, filename: str, ast: dict = None) -> list:
         issues = []
@@ -47,3 +63,6 @@ class StorageVisibilityDetector(BaseDetector):
             walk(ast)
         
         return issues
+
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)

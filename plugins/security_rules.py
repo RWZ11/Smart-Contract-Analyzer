@@ -62,6 +62,9 @@ class TxOriginDetector(BaseDetector):
                 })
         return issues
 
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)
+
 class ReentrancyDetector(BaseDetector):
     @property
     def id(self):
@@ -105,6 +108,9 @@ class ReentrancyDetector(BaseDetector):
                 })
         return issues
 
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)
+
 class PragmaVersionDetector(BaseDetector):
     @property
     def id(self):
@@ -130,3 +136,6 @@ class PragmaVersionDetector(BaseDetector):
                         "msg": "使用了旧版本的 Solidity，建议升级到 0.8.0 以上"
                     })
         return issues
+
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)

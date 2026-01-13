@@ -26,3 +26,6 @@ class DelegateCallDetector(BaseDetector):
                     "msg": "发现使用了 delegatecall，请确保目标地址可信且存储布局兼容"
                 })
         return issues
+
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)

@@ -21,6 +21,7 @@
 - 技术栈与依赖：
   - 后端：Python、FastAPI、Uvicorn、py-solc-x（AST 解析）
   - 分析引擎：插件化架构，AST/文本双模检测
+  - 中间表示（SCA-IR）：统一不同 Solidity 版本与语法糖，将逻辑抽象为稳定的指令序列（如 FUNC、REQUIRE、EXTERNAL_CALL、SEND、STATE_WRITE、SELFDESTRUCT、IF、LOOP），规则按语义工作，降低维护成本
   - 前端：React + Vite + TypeScript、Tailwind CSS、React Router、i18n
 
 ## 3. 安装指南
@@ -56,7 +57,22 @@
 
   # 生成 SARIF 报告（用于 GitHub Security）
   python cli.py test_contracts/vulnerable.sol --format sarif
+  
+  # 🆕 生成 Slither 风格的结构化 JSON 报告（推荐）
+  python cli.py test_contracts/vulnerable.sol --format slither --output report.json
+  
+  # 分析整个目录
+  python cli.py test_contracts/ --format slither --output full_report.json
   ```
+  
+  **Slither 风格报告特性：**
+  - ✅ 符合行业标准的 JSON 结构，包含 SWC 编号和详细修复建议
+  - ✅ 自动分类漏洞（High/Medium/Low）和信息性发现（Informational）
+  - ✅ 包含合约信息、函数定位、代码片段和源码行号
+  - ✅ 提供分析元数据（Solidity 版本、分析时长、时间戳）
+  - ✅ 统计汇总（总漏洞数、各严重级别分布）
+  - ✅ 易于前端解析和展示
+  
   - 核心引擎：参见 [engine.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/engine.py)
   - 插件接口：参见 [interface.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/interface.py)
   - 报告生成：参见 [reporter.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/reporter.py)
@@ -75,6 +91,22 @@
     -F "file=@test_contracts/vulnerable.sol" \
     http://127.0.0.1:8000/api/analyze
   ```
+  
+  **🆕 API 返回 Slither 风格的结构化报告：**
+  ```json
+  {
+    "status": "success",
+    "report": {
+      "sca_version": "1.0.0",
+      "analysis_metadata": { /* 分析元信息 */ },
+      "contracts_analyzed": [ /* 合约列表 */ ],
+      "vulnerabilities": [ /* 漏洞列表 */ ],
+      "informational_findings": [ /* 信息性发现 */ ],
+      "summary": { /* 统计汇总 */ }
+    }
+  }
+  ```
+  
   - API 入口：参见 [api.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/api.py)
 
 - 前端使用：
@@ -101,6 +133,15 @@
   console.log(resp.data.issues);
   ```
 
+ - 规则验证示例（CLI）：
+   ```bash
+   # ERC20 arbitrary-send：transferFrom 的 from 来自函数参数
+   python cli.py test_contracts/erc20_arbitrary.sol --format text
+
+   # protected-vars：关键状态写入未见所有者保护
+   python cli.py test_contracts/protected_vars.sol --format text
+   ```
+
 ## 5. 开发指南
 - 项目结构：
   ```text
@@ -108,17 +149,28 @@
   ├─ core/                  # 引擎与通用能力
   │  ├─ engine.py           # 分析引擎，加载并运行所有检测插件
   │  ├─ interface.py        # 插件抽象基类定义
+  │  ├─ context.py          # 标准化上下文（content/filename/lines/ast/ir）
   │  ├─ ast_parser.py       # AST 解析器（solc + py-solc-x）
+  │  └─ sca_ir.py           # 轻量版 SCA-IR 构建器（AST/文本回退）
   │  └─ reporter.py         # 报告生成（JSON/JUnit/SARIF）
   ├─ plugins/               # 检测插件（规则库）
-  │  ├─ security_rules.py   # ReentrancyDetector 等核心安全规则
-  │  ├─ taint_analysis.py   # 未授权访问/资金流向等数据流分析
-  │  ├─ unchecked_return.py # 未检查转账返回值
-  │  ├─ integer_overflow.py # 整数溢出/下溢
-  │  ├─ delegate_call.py    # 危险的 delegatecall 使用
-  │  └─ storage_visibility.py # 状态变量可见性
+  │  ├─ security_rules.py   # TxOriginDetector / ReentrancyDetector / PragmaVersionDetector
+  │  ├─ taint_analysis.py   # UnprotectedWithdrawDetector（简化污点示例）
+  │  ├─ unchecked_return.py # 文本/AST版未检查返回值
+  │  ├─ integer_overflow.py # 整数溢出/下溢（<0.8.0）
+  │  ├─ delegate_call.py    # 基础 delegatecall 使用
+  │  ├─ ir_reentrancy.py    # IR版重入（EXTERNAL_CALL→STATE_WRITE）
+  │  ├─ ir_unchecked_return.py # IR版未检查返回值（call/send 的 checked 标记）
+  │  ├─ ir_arbitrary_send_eth.py # 可能向外部控制地址发送 ETH
+  │  ├─ delegatecall_controlled.py # delegatecall 目标来自函数参数
+  │  ├─ msg_value_loop.py   # 循环中使用 msg.value
+  │  ├─ uninitialized_state.py # 未初始化状态变量
+  │  ├─ erc20_arbitrary_send.py # transferFrom 的 from 可控
+  │  └─ protected_vars.py   # 关键状态写入缺少所有者保护
   ├─ test_contracts/        # 测试与示例合约
-  │  └─ vulnerable.sol
+  │  ├─ vulnerable.sol
+  │  ├─ erc20_arbitrary.sol
+  │  └─ protected_vars.sol
   ├─ frontend/              # 前端单页应用（React + Vite）
   │  ├─ src/
   │  │  ├─ layouts/MainLayout.tsx
@@ -136,6 +188,10 @@
 - 构建与测试：
   - 前端构建：`cd frontend && npm run build`
   - 代码风格：建议遵循 PEP8（Python）与 TypeScript 最佳实践；可选集成 ruff/black/eslint（尚未强制）
+ - 规则接口与上下文：
+   - 标准 Detector 入口：`run(ctx)`（不再依赖引擎对函数签名的适配）
+   - 上下文对象：`AnalysisContext(content, filename, lines, ast, ir)`，由引擎统一构建与传入
+   - 示例参考：[interface.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/interface.py)、[context.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/context.py)
 
 ## 6. 贡献指南
 - 问题与功能请求：请创建 Issue，描述复现步骤、预期结果与环境信息
@@ -168,10 +224,15 @@ npm run dev    # http://localhost:5173
 
 # 3) CLI 分析
 python cli.py test_contracts/vulnerable.sol --format sarif
+# 单文件规则验证（示例）
+python cli.py test_contracts/erc20_arbitrary.sol --format text
+python cli.py test_contracts/protected_vars.sol --format text
 ```
 
 如需查看关键源码：
 - 引擎：[engine.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/engine.py)
 - 插件接口：[interface.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/interface.py)
+- 上下文：[context.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/context.py)
+- IR 构建器：[sca_ir.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/sca_ir.py)
 - API：[api.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/api.py)
 - 前端代理：[vite.config.ts](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/frontend/vite.config.ts)

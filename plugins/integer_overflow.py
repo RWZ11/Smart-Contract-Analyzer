@@ -13,6 +13,22 @@ class IntegerOverflowDetector(BaseDetector):
     @property
     def severity(self):
         return "High"
+    
+    @property
+    def title(self):
+        return "Integer Overflow/Underflow Risk"
+    
+    @property
+    def swc_id(self):
+        return "SWC-101"
+    
+    @property
+    def confidence(self):
+        return "Medium"
+    
+    @property
+    def fix_suggestion(self):
+        return "For Solidity < 0.8.0: Use OpenZeppelin SafeMath library for all arithmetic operations. For Solidity >= 0.8.0: Avoid using unchecked blocks unless absolutely necessary and thoroughly audited."
 
     def check(self, content: str, filename: str, ast: dict = None) -> list:
         issues = []
@@ -54,3 +70,6 @@ class IntegerOverflowDetector(BaseDetector):
                     "msg": "发现算术运算且未使用 SafeMath (Solidity < 0.8.0 需注意溢出)"
                 })
         return issues
+
+    def run(self, ctx):
+        return self.check(ctx.content, ctx.filename, ast=ctx.ast)

@@ -1,25 +1,21 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, AlertTriangle, CheckCircle } from "lucide-react";
+import { Upload, FileText, AlertTriangle, Download } from "lucide-react";
 import axios from 'axios';
-
-interface Vulnerability {
-  line: number;
-  msg: string;
-  detector: string;
-  severity: string;
-}
+import { AnalysisReport, ApiResponse } from '@/types/report';
+import ReportSummary from '@/components/ReportSummary';
+import VulnerabilityList from '@/components/VulnerabilityList';
 
 export default function Analyzer() {
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [results, setResults] = useState<Vulnerability[] | null>(null);
+  const [report, setReport] = useState<AnalysisReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-      setResults(null);
+      setReport(null);
       setError(null);
     }
   };
@@ -29,23 +25,22 @@ export default function Analyzer() {
 
     setIsAnalyzing(true);
     setError(null);
-    setResults(null);
+    setReport(null);
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      // 实际调用后端 API
-      const response = await axios.post('/api/analyze', formData, {
+      const response = await axios.post<ApiResponse>('/api/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      if (response.data.issues) {
-        setResults(response.data.issues);
+      if (response.data.status === 'success' && response.data.report) {
+        setReport(response.data.report);
       } else {
-        setResults([]);
+        setError("分析失败，请重试。");
       }
     } catch (err) {
       console.error(err);
@@ -53,6 +48,21 @@ export default function Analyzer() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleDownloadReport = () => {
+    if (!report) return;
+    
+    const dataStr = JSON.stringify(report, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sca_report_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -100,36 +110,31 @@ export default function Analyzer() {
         </div>
       )}
 
-      {results && (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold flex items-center gap-2">
-            <CheckCircle className="text-green-500" />
-            分析报告
-          </h3>
-          <div className="grid gap-4">
-            {results.map((issue, idx) => (
-              <div key={idx} className="bg-surface p-4 rounded-lg border border-gray-700 flex gap-4 items-start">
-                <div className={`mt-1 w-2 h-2 rounded-full ${
-                  issue.severity === 'High' ? 'bg-red-500' : 
-                  issue.severity === 'Medium' ? 'bg-yellow-500' : 'bg-blue-500'
-                }`} />
-                <div>
-                  <h4 className="font-medium text-lg">{issue.msg}</h4>
-                  <div className="text-sm text-gray-400 mt-1 flex gap-4">
-                    <span>行号: {issue.line}</span>
-                    <span>类型: {issue.detector}</span>
-                    <span className={`${
-                       issue.severity === 'High' ? 'text-red-400' : 
-                       issue.severity === 'Medium' ? 'text-yellow-400' : 'text-blue-400'
-                    }`}>严重程度: {issue.severity}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {results.length === 0 && (
-              <div className="text-center py-8 text-gray-400">未发现明显漏洞</div>
-            )}
+      {report && (
+        <div className="space-y-6">
+          {/* 下载报告按钮 */}
+          <div className="flex justify-end">
+            <Button
+              onClick={handleDownloadReport}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Download size={18} />
+              下载报告 (JSON)
+            </Button>
           </div>
+
+          {/* 报告汇总 */}
+          <ReportSummary 
+            summary={report.summary} 
+            metadata={report.analysis_metadata}
+          />
+
+          {/* 漏洞列表 */}
+          <VulnerabilityList
+            vulnerabilities={report.vulnerabilities}
+            informationalFindings={report.informational_findings}
+          />
         </div>
       )}
     </div>
