@@ -77,17 +77,21 @@
   - 插件接口：参见 [interface.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/interface.py)
   - 报告生成：参见 [reporter.py](file:///d:/桌面/网络应用开发综合项目实践/Smart-Contract-Analyzer/core/reporter.py)
 
-- Web API 使用：
-  1) 启动后端服务：
+ - Web API 使用：
+  1) 启动后端服务（Windows 推荐命令）：
   ```bash
-  python api.py
-  # 或热重载方式：
+  # 以模块方式启动，兼容 Windows 环境
+  python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload
+  ```
+  或（类 Unix 环境常用）：
+  ```bash
   uvicorn api:app --host 0.0.0.0 --port 8000 --reload
   ```
   2) 调用接口：
   ```bash
   # 上传 .sol 文件并获取检测结果
-  curl -X POST \
+  # PowerShell 环境请使用 curl.exe，避免参数不兼容
+  curl.exe -X POST \
     -F "file=@test_contracts/vulnerable.sol" \
     http://127.0.0.1:8000/api/analyze
   ```
@@ -130,8 +134,17 @@
   const resp = await axios.post('/api/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
-  console.log(resp.data.issues);
+  // API 返回对象形如 { status: "success", report: { ... } }
+  // 读取漏洞列表：
+  console.log(resp.data.report.vulnerabilities);
+  // 读取统计汇总（前端“总数/High/Medium/Low”展示）：
+  console.log(resp.data.report.summary);
   ```
+
+### 故障排查（Windows 常见）
+- uvicorn 不是命令：使用 `python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload`
+- PowerShell 下 `curl` 参数错误：改用 `curl.exe`（示例已给出）
+- 前端依赖缺失（Cannot find module）：进入 frontend 目录执行 `npm install`
 
  - 规则验证示例（CLI）：
    ```bash

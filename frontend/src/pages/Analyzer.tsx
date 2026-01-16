@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, AlertTriangle, Download } from "lucide-react";
+import { Upload, FileText, AlertTriangle, Download, FileJson } from "lucide-react";
 import axios from 'axios';
 import { AnalysisReport, ApiResponse } from '@/types/report';
 import ReportSummary from '@/components/ReportSummary';
@@ -65,6 +65,61 @@ export default function Analyzer() {
     URL.revokeObjectURL(url);
   };
 
+  const handleImportReport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post<ApiResponse>('/api/import-report', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.status === 'success' && response.data.report) {
+        setReport(response.data.report);
+        setError(null);
+      } else {
+        setError("导入报告失败，请确认文件格式正确。");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("导入报告失败，请检查文件格式。");
+    }
+  };
+
+  const handleDownloadHTML = async () => {
+    if (!file) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post('/api/analyze/html', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        responseType: 'blob'
+      });
+
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `sca_report_${new Date().toISOString().split('T')[0]}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      setError("生成 HTML 报告失败。");
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="bg-surface p-8 rounded-lg border border-gray-700 text-center space-y-6">
@@ -96,11 +151,32 @@ export default function Analyzer() {
           </div>
         )}
 
-        {file && (
-          <Button onClick={handleAnalyze} disabled={isAnalyzing} className="w-full max-w-xs">
-            {isAnalyzing ? "正在分析..." : "开始审计"}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-3 justify-center">
+          {file && (
+            <Button onClick={handleAnalyze} disabled={isAnalyzing} className="">
+              {isAnalyzing ? "正在分析..." : "开始审计"}
+            </Button>
+          )}
+          
+          {/* 导入报告按钮 */}
+          <div>
+            <input 
+              type="file" 
+              accept=".json" 
+              onChange={handleImportReport} 
+              className="hidden" 
+              id="import-report"
+            />
+            <label htmlFor="import-report">
+              <Button variant="outline" className="cursor-pointer" asChild>
+                <span className="flex items-center gap-2">
+                  <FileJson size={18} />
+                  导入报告
+                </span>
+              </Button>
+            </label>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -113,15 +189,26 @@ export default function Analyzer() {
       {report && (
         <div className="space-y-6">
           {/* 下载报告按钮 */}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <Button
               onClick={handleDownloadReport}
               variant="outline"
               className="flex items-center gap-2"
             >
               <Download size={18} />
-              下载报告 (JSON)
+              下载 JSON 报告
             </Button>
+            
+            {file && (
+              <Button
+                onClick={handleDownloadHTML}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Download size={18} />
+                下载 HTML 报告
+              </Button>
+            )}
           </div>
 
           {/* 报告汇总 */}
